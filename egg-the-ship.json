@@ -1,0 +1,122 @@
+{
+    "_comment": "DO NOT EDIT: FILE GENERATED AUTOMATICALLY BY PTERODACTYL PANEL - PTERODACTYL.IO",
+    "meta": {
+        "version": "PTDL_v2",
+        "update_url": null
+    },
+    "exported_at": "2026-10-31T00:00:00+00:00",
+    "name": "The Ship: Murder Party",
+    "author": "tznkai@gmail.com",
+    "description": "Dedicated server for The Ship: Murder Party (Steam app 2403, Linux Source dedicated server). Requires a Steam account to install.",
+    "features": null,
+    "docker_images": {
+        "The Ship": "ghcr.io/tznkai/the-ship-server:latest"
+    },
+    "file_denylist": [],
+    "startup": "./srcds_run -game ship -console -norestart -port {{SERVER_PORT}} -maxplayers {{MAX_PLAYERS}} +ip 0.0.0.0 +ship_game_mode {{GAME_MODE}} +map {{SRCDS_MAP}} +hostname \"{{SERVER_NAME}}\" +sv_password \"{{SERVER_PASSWORD}}\" +rcon_password \"{{RCON_PASSWORD}}\"",
+    "config": {
+        "files": "{}",
+        "startup": "{\"done\": \"Connection to Steam servers successful\"}",
+        "logs": "{}",
+        "stop": "quit"
+    },
+    "scripts": {
+        "installation": {
+            "script": "#!/bin/bash\n# SPDX-FileCopyrightText: 2026 K. Chen\n# SPDX-License-Identifier: AGPL-3.0-or-later\n#\n# Pterodactyl install script for The Ship: Murder Party dedicated server.\n# Runs as root in the installer container with the server's files mounted at /mnt/server.\n# This file is embedded in egg-the-ship.json; run tools/build_egg.py after editing it.\n#\n# App 2403 is not in Steam's anonymous dedicated-server license, so a real Steam account\n# is required (the app is free on demand; the account does not need to own the game).\nset -euo pipefail\n\nAPP_ID=2403\nSERVER_DIR=/mnt/server\n\nif [ -z \"${STEAM_USER:-}\" ] || [ -z \"${STEAM_PASS:-}\" ]; then\n    echo \"STEAM_USER and STEAM_PASS are required: Steam does not serve app ${APP_ID} to anonymous logins.\" >&2\n    exit 1\nfi\n\napt-get update\napt-get install -y --no-install-recommends ca-certificates curl lib32gcc-s1\n\n# SteamCMD and its login state live in /tmp, not the server directory, so the\n# account's cached credentials never end up in files the panel lets users browse.\nexport HOME=/tmp/steamhome\nmkdir -p \"${HOME}\" /tmp/steamcmd \"${SERVER_DIR}\"\ncurl -sSL https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz | tar -xz -C /tmp/steamcmd\ncd /tmp/steamcmd\n\nLOGIN=(+login \"${STEAM_USER}\" \"${STEAM_PASS}\")\nif [ -n \"${STEAM_AUTH:-}\" ]; then\n    LOGIN+=(\"${STEAM_AUTH}\")\nfi\n\n# The app only defines a Windows launch config; forcing Linux gets the Linux binaries.\n./steamcmd.sh +@sSteamCmdForcePlatformType linux +force_install_dir \"${SERVER_DIR}\" \\\n    \"${LOGIN[@]}\" +app_update \"${APP_ID}\" validate +quit || true\n\nif [ ! -f \"${SERVER_DIR}/srcds_run\" ]; then\n    echo \"Install failed: ${SERVER_DIR}/srcds_run is missing. Check the Steam login output above.\" >&2\n    exit 1\nfi\n\n# The bundled 2008 steamclient cannot log on to today's Steam, so players fail validation.\n# SteamCMD's current 32-bit steamclient still implements the interfaces this engine asks for.\n# app_update validate restores the old file, so this runs on every install.\ncp -f /tmp/steamcmd/linux32/steamclient.so \"${SERVER_DIR}/bin/steamclient_i486.so\"\n\n# The game's files are mixed case (scripts/Needs, GameInfo.txt) but its code asks for\n# lowercase paths. Without these, spawning a player crashes the server. Give every mixed-case\n# file and directory a lowercase symlink beside it so both spellings resolve.\nlinks=0\nwhile IFS= read -r -d '' path; do\n    dir=$(dirname \"${path}\")\n    name=$(basename \"${path}\")\n    lower=$(printf '%s' \"${name}\" | tr '[:upper:]' '[:lower:]')\n    if [ ! -e \"${dir}/${lower}\" ] && [ ! -L \"${dir}/${lower}\" ]; then\n        ln -s \"${name}\" \"${dir}/${lower}\"\n        links=$((links + 1))\n    fi\ndone < <(find \"${SERVER_DIR}/ship\" -name '*[A-Z]*' ! -type l -print0)\necho \"Created ${links} lowercase links.\"\n\nrm -rf /tmp/steamcmd /tmp/steamhome\necho \"The Ship dedicated server installed.\"\n",
+            "container": "ghcr.io/parkervcp/installers:debian",
+            "entrypoint": "bash"
+        }
+    },
+    "variables": [
+        {
+            "name": "Steam username",
+            "description": "Steam account used to download the server. App 2403 is not available anonymously; any Steam account works. Hidden from server users.",
+            "env_variable": "STEAM_USER",
+            "default_value": "",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "required|string|max:64",
+            "field_type": "text"
+        },
+        {
+            "name": "Steam password",
+            "description": "Password for the Steam account above. Only used during install. Hidden from server users.",
+            "env_variable": "STEAM_PASS",
+            "default_value": "",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "required|string|max:128",
+            "field_type": "text"
+        },
+        {
+            "name": "Steam Guard code",
+            "description": "Optional. Current Steam Guard code, needed only if the account has Steam Guard enabled. Set it just before reinstalling; codes expire.",
+            "env_variable": "STEAM_AUTH",
+            "default_value": "",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "nullable|string|max:10",
+            "field_type": "text"
+        },
+        {
+            "name": "Server name",
+            "description": "Name shown in the server browser.",
+            "env_variable": "SERVER_NAME",
+            "default_value": "The Ship Server",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|max:64",
+            "field_type": "text"
+        },
+        {
+            "name": "Default map",
+            "description": "Map loaded at startup, without the .bsp extension.",
+            "env_variable": "SRCDS_MAP",
+            "default_value": "batavier",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|alpha_dash|max:64",
+            "field_type": "text"
+        },
+        {
+            "name": "Game mode",
+            "description": "0 Hunt, 1 Elimination, 2 Duel, 3 Deathmatch, 4 Team VIP, 5 Team Elimination, 6 World Leader Hunt, 7 World Leader Elimination, 8 World Leader Deathmatch.",
+            "env_variable": "GAME_MODE",
+            "default_value": "0",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|between:0,8",
+            "field_type": "text"
+        },
+        {
+            "name": "Max players",
+            "description": "Maximum number of players.",
+            "env_variable": "MAX_PLAYERS",
+            "default_value": "16",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|between:2,32",
+            "field_type": "text"
+        },
+        {
+            "name": "Server password",
+            "description": "Optional. Password players need to join. Leave blank for a public server.",
+            "env_variable": "SERVER_PASSWORD",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:64|regex:/^[^\"]*$/",
+            "field_type": "text"
+        },
+        {
+            "name": "RCON password",
+            "description": "Optional. Remote console password. Leave blank to disable RCON.",
+            "env_variable": "RCON_PASSWORD",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:64|regex:/^[^\"]*$/",
+            "field_type": "text"
+        }
+    ]
+}

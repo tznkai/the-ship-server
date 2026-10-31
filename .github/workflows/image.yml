@@ -1,0 +1,55 @@
+# SPDX-FileCopyrightText: 2026 K. Chen
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Lints the scripts and builds the image on every push and pull request; logs in to GHCR and
+# pushes only for v* tags. The image is published as linux/amd64 although its userland is
+# 32-bit (see Dockerfile): an amd64 Wings node would refuse to pull a linux/386-only image.
+name: build-and-publish
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: shellcheck install.sh entrypoint.sh pull.sh
+      - run: python3 tools/build_egg.py && git diff --exit-code egg-the-ship.json
+
+  image:
+    needs: lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=semver,pattern={{version}}
+            type=sha
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          push: ${{ startsWith(github.ref, 'refs/tags/v') }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
