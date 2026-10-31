@@ -21,12 +21,15 @@ fi
 apt-get update
 apt-get install -y --no-install-recommends ca-certificates curl lib32gcc-s1
 
-# SteamCMD and its login state live in /tmp, not the server directory, so the
-# account's cached credentials never end up in files the panel lets users browse.
-export HOME=/tmp/steamhome
-mkdir -p "${HOME}" /tmp/steamcmd "${SERVER_DIR}"
-curl -sSL https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz | tar -xz -C /tmp/steamcmd
-cd /tmp/steamcmd
+# SteamCMD needs 250 MB free to self-update, more than Wings' /tmp tmpfs (100 MB by default),
+# so it runs from the server disk. The trap deletes it and its cached login on any exit,
+# so the account's credentials never stay in files the panel lets users browse.
+STEAMCMD_DIR="${SERVER_DIR}/.steamcmd-install"
+trap 'rm -rf "${STEAMCMD_DIR}"' EXIT
+export HOME="${STEAMCMD_DIR}/home"
+mkdir -p "${HOME}"
+curl -sSL https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz | tar -xz -C "${STEAMCMD_DIR}"
+cd "${STEAMCMD_DIR}"
 
 LOGIN=(+login "${STEAM_USER}" "${STEAM_PASS}")
 if [ -n "${STEAM_AUTH:-}" ]; then
@@ -45,7 +48,7 @@ fi
 # The bundled 2008 steamclient cannot log on to today's Steam, so players fail validation.
 # SteamCMD's current 32-bit steamclient still implements the interfaces this engine asks for.
 # app_update validate restores the old file, so this runs on every install.
-cp -f /tmp/steamcmd/linux32/steamclient.so "${SERVER_DIR}/bin/steamclient_i486.so"
+cp -f "${STEAMCMD_DIR}/linux32/steamclient.so" "${SERVER_DIR}/bin/steamclient_i486.so"
 
 # The game's files are mixed case (scripts/Needs, GameInfo.txt) but its code asks for
 # lowercase paths. Without these, spawning a player crashes the server. Give every mixed-case
@@ -62,5 +65,4 @@ while IFS= read -r -d '' path; do
 done < <(find "${SERVER_DIR}/ship" -name '*[A-Z]*' ! -type l -print0)
 echo "Created ${links} lowercase links."
 
-rm -rf /tmp/steamcmd /tmp/steamhome
 echo "The Ship dedicated server installed."
