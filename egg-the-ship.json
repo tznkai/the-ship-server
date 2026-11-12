@@ -13,7 +13,7 @@
         "The Ship": "ghcr.io/tznkai/the-ship-server:latest"
     },
     "file_denylist": [],
-    "startup": "./srcds_run -game ship -console -norestart -port {{SERVER_PORT}} -maxplayers {{MAX_PLAYERS}} +ip 0.0.0.0 +ship_game_mode {{GAME_MODE}} +map {{SRCDS_MAP}} +hostname \"{{SERVER_NAME}}\" +sv_password \"{{SERVER_PASSWORD}}\" +rcon_password \"{{RCON_PASSWORD}}\"",
+    "startup": "./srcds_run -game ship -console -norestart -port {{SERVER_PORT}} -maxplayers {{MAX_PLAYERS}} +ip 0.0.0.0 +ship_game_mode {{GAME_MODE}} +hostname \"{{SERVER_NAME}}\" +sv_password \"{{SERVER_PASSWORD}}\" +rcon_password \"{{RCON_PASSWORD}}\" +sv_lan {{LAN_ONLY}} +ship_enable_bots {{ENABLE_BOTS}} +bot_quota {{BOT_QUOTA}} +bot_quota_mode {{BOT_QUOTA_MODE}} +bot_difficulty {{BOT_DIFFICULTY}} +bot_join_after_player {{BOT_JOIN_AFTER_PLAYER}} +ship_num_participants {{NUM_PARTICIPANTS}} {{EXTRA_ARGS}} +map {{SRCDS_MAP}}",
     "config": {
         "files": "{}",
         "startup": "{\"done\": \"Connection to Steam servers successful\"}",
@@ -116,6 +116,86 @@
             "user_viewable": true,
             "user_editable": true,
             "rules": "nullable|string|max:64|regex:/^[^\"]*$/",
+            "field_type": "text"
+        },
+        {
+            "name": "LAN only",
+            "description": "1 hides the server from the internet browser and accepts LAN clients only (sv_lan 1). Add -insecure to Extra launch options as well if players are rejected by Steam validation.",
+            "env_variable": "LAN_ONLY",
+            "default_value": "0",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|boolean",
+            "field_type": "text"
+        },
+        {
+            "name": "Enable bots",
+            "description": "1 fills the ship with bots (ship_enable_bots). The settings below only apply when this is 1.",
+            "env_variable": "ENABLE_BOTS",
+            "default_value": "0",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|boolean",
+            "field_type": "text"
+        },
+        {
+            "name": "Bot quota",
+            "description": "Bot count; how it is applied depends on Bot quota mode (bot_quota).",
+            "env_variable": "BOT_QUOTA",
+            "default_value": "4",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|between:0,31",
+            "field_type": "text"
+        },
+        {
+            "name": "Bot quota mode",
+            "description": "normal: always Bot quota bots. fill: add bots until there are Bot quota players in total. match: Bot quota bots per human (bot_quota_mode).",
+            "env_variable": "BOT_QUOTA_MODE",
+            "default_value": "normal",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|in:normal,fill,match",
+            "field_type": "text"
+        },
+        {
+            "name": "Bot difficulty",
+            "description": "0 easy, 1 normal, 2 hard, 3 expert (bot_difficulty).",
+            "env_variable": "BOT_DIFFICULTY",
+            "default_value": "1",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|between:0,3",
+            "field_type": "text"
+        },
+        {
+            "name": "Bots wait for players",
+            "description": "1 keeps bots out until a human joins (bot_join_after_player).",
+            "env_variable": "BOT_JOIN_AFTER_PLAYER",
+            "default_value": "0",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|boolean",
+            "field_type": "text"
+        },
+        {
+            "name": "Minimum participants",
+            "description": "Minimum number of players in the kill loop (ship_num_participants). 0 is the game default.",
+            "env_variable": "NUM_PARTICIPANTS",
+            "default_value": "0",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|between:0,32",
+            "field_type": "text"
+        },
+        {
+            "name": "Extra launch options",
+            "description": "Optional. Appended to the startup command, e.g. -insecure, -tickrate 100, -nohltv, +sv_region 3, +exec custom.cfg.",
+            "env_variable": "EXTRA_ARGS",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:256|regex:/^[A-Za-z0-9_ .+\\/-]*$/",
             "field_type": "text"
         }
     ]

@@ -28,7 +28,25 @@ nodes can pull it.
    logins, but any Steam account works and it does not need to own the game. The installer starts
    with no saved login every time. If the account uses Steam Guard, enter the current code in
    **Steam Guard code** just before installing. A dedicated account without Steam Guard is easiest.
-4. Install, then start. Game settings such as bots and timers go in `ship/cfg/server.cfg`, which ships fully commented.
+4. Install, then start. Bots, LAN mode and extra launch options are egg variables (see below). Other
+   game settings, such as timers, go in `ship/cfg/server.cfg`, which ships fully commented. Anything
+   uncommented there runs at every map load and overrides the egg variables.
+
+## Startup variables
+
+| Variable | Sets | Notes |
+|---|---|---|
+| Enable bots | `ship_enable_bots` | Off by default. With 0, no bots join whatever the quota says. |
+| Bot quota | `bot_quota` | Default 4. |
+| Bot quota mode | `bot_quota_mode` | `normal` (always N bots), `fill` (top up to N players), `match` (N bots per human). |
+| Bot difficulty | `bot_difficulty` | 0 easy to 3 expert. |
+| Bots wait for players | `bot_join_after_player` | 1 keeps bots out of an empty server. |
+| Minimum participants | `ship_num_participants` | Players in the kill loop; 0 is the game default. |
+| LAN only | `sv_lan` | 1 means LAN clients only and no master-server heartbeat. |
+| Extra launch options | appended | For example `-insecure`, `-tickrate 100`, `-nohltv`, `+sv_region 3`, `+exec my.cfg`. Letters, digits, spaces and `_ . + / -` only. |
+
+Every stock map ships a `.nav` mesh, so bots work on all of them. `+map` comes last in the startup
+command, so all the settings are in place before the map loads.
 
 ## Why the image is built this way
 
