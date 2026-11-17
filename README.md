@@ -4,8 +4,9 @@
 # The Ship: Murder Party — Pterodactyl egg
 
 ## Human to human
+Hi, human author here. I wrote this section of the README myself so you don't have get through Claudese to understand what's happening. This entire project solves a me-shaped problem: how do I let my wife play The Ship, which I host on my homelab. I hope it can be useful to you in playing this classic game that never quite got the love it deserved.
 
-<!-- To be written by the author: how the egg was developed, and the risks. -->
+Outside of this section of the README, including the rest of this file, this project, was directed by K.Chen through iterative instruction and testing, orchestrated by Claude Code using Opus 5.5, and audited and coded by various Claude models of that generation. This presents certain risks to you. Your best way to alleviate those risks is what it always is with free and open source software: audit the code yourself, and fork as required.
 
 ## What this is
 
