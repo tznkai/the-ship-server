@@ -9,6 +9,8 @@ if [ -z "${STARTUP}" ]; then
     echo "STARTUP is not set; run this image from the Pterodactyl egg." >&2
     exit 1
 fi
+# A killed install can leave SteamCMD's folder, with its cached Steam login, behind.
+rm -rf /home/container/.steamcmd-install
 # The engine dumps ~190 MB cores into the server directory on every crash.
 ulimit -c 0
 # Overlap-safe string copies and fast refusal of the retired Steam2 servers; see shim/memfix.c.

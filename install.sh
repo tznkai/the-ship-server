@@ -14,7 +14,8 @@ APP_ID=2403
 SERVER_DIR=/mnt/server
 
 if [ -z "${STEAM_USER:-}" ] || [ -z "${STEAM_PASS:-}" ]; then
-    echo "STEAM_USER and STEAM_PASS are required: Steam does not serve app ${APP_ID} to anonymous logins." >&2
+    echo "STEAM_USER and STEAM_PASS are required to install and reinstall: Steam does not serve app ${APP_ID} to anonymous logins." >&2
+    echo "If you cleared them after the last install, enter them again, reinstall, then clear them." >&2
     exit 1
 fi
 
@@ -22,9 +23,12 @@ apt-get update
 apt-get install -y --no-install-recommends ca-certificates curl lib32gcc-s1
 
 # SteamCMD needs 250 MB free to self-update, more than Wings' /tmp tmpfs (100 MB by default),
-# so it runs from the server disk. The trap deletes it and its cached login on any exit,
-# so the account's credentials never stay in files the panel lets users browse.
+# so it runs from the server disk. The trap deletes it and its cached login on a normal exit.
+# A SIGKILL (install timeout, OOM) skips the trap, so the egg also denylists the folder,
+# entrypoint.sh deletes it at server start, and it is wiped here before use so nothing a
+# user placed in it runs with the credentials in the environment.
 STEAMCMD_DIR="${SERVER_DIR}/.steamcmd-install"
+rm -rf "${STEAMCMD_DIR}"
 trap 'rm -rf "${STEAMCMD_DIR}"' EXIT
 export HOME="${STEAMCMD_DIR}/home"
 mkdir -p "${HOME}"
@@ -66,3 +70,4 @@ done < <(find "${SERVER_DIR}/ship" -name '*[A-Z]*' ! -type l -print0)
 echo "Created ${links} lowercase links."
 
 echo "The Ship dedicated server installed."
+echo "Now clear Steam password and Steam Guard code in Startup, then restart the server."

@@ -28,10 +28,11 @@ EGG = {
     "name": "The Ship: Murder Party",
     # The panel's import returns 500 unless author is an email address.
     "author": "tznkai@gmail.com",
-    "description": "Dedicated server for The Ship: Murder Party (Steam app 2403, Linux Source dedicated server). Requires a Steam account to install.",
+    "description": "Dedicated server for The Ship: Murder Party (Steam app 2403, Linux Source dedicated server). Requires a Steam account to install and reinstall.",
     "features": None,
     "docker_images": {"The Ship": "ghcr.io/tznkai/the-ship-server:latest"},
-    "file_denylist": [],
+    # The installer's SteamCMD folder holds a cached Steam login while it runs.
+    "file_denylist": [".steamcmd-install"],
     "startup": (
         "./srcds_run -game ship -console -norestart -port {{SERVER_PORT}} "
         "-maxplayers {{MAX_PLAYERS}} +ip 0.0.0.0 +ship_game_mode {{GAME_MODE}} "
@@ -55,22 +56,27 @@ EGG = {
         }
     },
     "variables": [
+        # Pterodactyl has no install-only variables: every value here is also in the running
+        # server's environment. The three are nullable so the admin can clear them after install.
         variable(
             "Steam username",
             "STEAM_USER",
             "",
-            "Steam account used to download the server. App 2403 is not available anonymously; "
-            "any Steam account works. Hidden from server users.",
-            "required|string|max:64",
-            viewable=False,
+            "Needed to install and reinstall. App 2403 is not available anonymously; any Steam "
+            "account works. A throwaway Steam account will work. Shown to server users: SteamCMD prints it "
+            "in the install console.",
+            "nullable|string|max:64",
+            viewable=True,
             editable=False,
         ),
         variable(
             "Steam password",
             "STEAM_PASS",
             "",
-            "Password for the Steam account above. Only used during install. Hidden from server users.",
-            "required|string|max:128",
+            "Needed to install and reinstall. Not secret from the running server: it stays in the "
+            "server's environment until you clear this field and restart. Clear it after every "
+            "install, and enter it again before reinstalling.",
+            "nullable|string|max:128",
             viewable=False,
             editable=False,
         ),
@@ -78,8 +84,8 @@ EGG = {
             "Steam Guard code",
             "STEAM_AUTH",
             "",
-            "Optional. Current Steam Guard code, needed only if the account has Steam Guard enabled. "
-            "Set it just before reinstalling; codes expire.",
+            "Needed to install and reinstall if the account has Steam Guard. Enter the current code "
+            "just before installing; codes expire. Clear it after install along with the password.",
             "nullable|string|max:10",
             viewable=False,
             editable=False,

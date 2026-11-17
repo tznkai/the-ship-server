@@ -7,12 +7,14 @@
     "exported_at": "2026-10-31T00:00:00+00:00",
     "name": "The Ship: Murder Party",
     "author": "tznkai@gmail.com",
-    "description": "Dedicated server for The Ship: Murder Party (Steam app 2403, Linux Source dedicated server). Requires a Steam account to install.",
+    "description": "Dedicated server for The Ship: Murder Party (Steam app 2403, Linux Source dedicated server). Requires a Steam account to install and reinstall.",
     "features": null,
     "docker_images": {
         "The Ship": "ghcr.io/tznkai/the-ship-server:latest"
     },
-    "file_denylist": [],
+    "file_denylist": [
+        ".steamcmd-install"
+    ],
     "startup": "./srcds_run -game ship -console -norestart -port {{SERVER_PORT}} -maxplayers {{MAX_PLAYERS}} +ip 0.0.0.0 +ship_game_mode {{GAME_MODE}} +hostname \"{{SERVER_NAME}}\" +sv_password \"{{SERVER_PASSWORD}}\" +rcon_password \"{{RCON_PASSWORD}}\" +sv_lan {{LAN_ONLY}} +ship_enable_bots {{ENABLE_BOTS}} +bot_quota {{BOT_QUOTA}} +bot_quota_mode {{BOT_QUOTA_MODE}} +bot_difficulty {{BOT_DIFFICULTY}} +bot_join_after_player {{BOT_JOIN_AFTER_PLAYER}} +ship_num_participants {{NUM_PARTICIPANTS}} {{EXTRA_ARGS}} +map {{SRCDS_MAP}}",
     "config": {
         "files": "{}",
@@ -22,7 +24,7 @@
     },
     "scripts": {
         "installation": {
-            "script": "#!/bin/bash\n# SPDX-FileCopyrightText: 2026 K. Chen\n# SPDX-License-Identifier: AGPL-3.0-or-later\n#\n# Pterodactyl install script for The Ship: Murder Party dedicated server.\n# Runs as root in the installer container with the server's files mounted at /mnt/server.\n# This file is embedded in egg-the-ship.json; run tools/build_egg.py after editing it.\n#\n# App 2403 is not in Steam's anonymous dedicated-server license, so a real Steam account\n# is required (the app is free on demand; the account does not need to own the game).\nset -euo pipefail\n\nAPP_ID=2403\nSERVER_DIR=/mnt/server\n\nif [ -z \"${STEAM_USER:-}\" ] || [ -z \"${STEAM_PASS:-}\" ]; then\n    echo \"STEAM_USER and STEAM_PASS are required: Steam does not serve app ${APP_ID} to anonymous logins.\" >&2\n    exit 1\nfi\n\napt-get update\napt-get install -y --no-install-recommends ca-certificates curl lib32gcc-s1\n\n# SteamCMD needs 250 MB free to self-update, more than Wings' /tmp tmpfs (100 MB by default),\n# so it runs from the server disk. The trap deletes it and its cached login on any exit,\n# so the account's credentials never stay in files the panel lets users browse.\nSTEAMCMD_DIR=\"${SERVER_DIR}/.steamcmd-install\"\ntrap 'rm -rf \"${STEAMCMD_DIR}\"' EXIT\nexport HOME=\"${STEAMCMD_DIR}/home\"\nmkdir -p \"${HOME}\"\ncurl -sSL https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz | tar -xz -C \"${STEAMCMD_DIR}\"\ncd \"${STEAMCMD_DIR}\"\n\nLOGIN=(+login \"${STEAM_USER}\" \"${STEAM_PASS}\")\nif [ -n \"${STEAM_AUTH:-}\" ]; then\n    LOGIN+=(\"${STEAM_AUTH}\")\nfi\n\n# The app only defines a Windows launch config; forcing Linux gets the Linux binaries.\n./steamcmd.sh +@sSteamCmdForcePlatformType linux +force_install_dir \"${SERVER_DIR}\" \\\n    \"${LOGIN[@]}\" +app_update \"${APP_ID}\" validate +quit || true\n\nif [ ! -f \"${SERVER_DIR}/srcds_run\" ]; then\n    echo \"Install failed: ${SERVER_DIR}/srcds_run is missing. Check the Steam login output above.\" >&2\n    exit 1\nfi\n\n# The bundled 2008 steamclient cannot log on to today's Steam, so players fail validation.\n# SteamCMD's current 32-bit steamclient still implements the interfaces this engine asks for.\n# app_update validate restores the old file, so this runs on every install.\ncp -f \"${STEAMCMD_DIR}/linux32/steamclient.so\" \"${SERVER_DIR}/bin/steamclient_i486.so\"\n\n# The game's files are mixed case (scripts/Needs, GameInfo.txt) but its code asks for\n# lowercase paths. Without these, spawning a player crashes the server. Give every mixed-case\n# file and directory a lowercase symlink beside it so both spellings resolve.\nlinks=0\nwhile IFS= read -r -d '' path; do\n    dir=$(dirname \"${path}\")\n    name=$(basename \"${path}\")\n    lower=$(printf '%s' \"${name}\" | tr '[:upper:]' '[:lower:]')\n    if [ ! -e \"${dir}/${lower}\" ] && [ ! -L \"${dir}/${lower}\" ]; then\n        ln -s \"${name}\" \"${dir}/${lower}\"\n        links=$((links + 1))\n    fi\ndone < <(find \"${SERVER_DIR}/ship\" -name '*[A-Z]*' ! -type l -print0)\necho \"Created ${links} lowercase links.\"\n\necho \"The Ship dedicated server installed.\"\n",
+            "script": "#!/bin/bash\n# SPDX-FileCopyrightText: 2026 K. Chen\n# SPDX-License-Identifier: AGPL-3.0-or-later\n#\n# Pterodactyl install script for The Ship: Murder Party dedicated server.\n# Runs as root in the installer container with the server's files mounted at /mnt/server.\n# This file is embedded in egg-the-ship.json; run tools/build_egg.py after editing it.\n#\n# App 2403 is not in Steam's anonymous dedicated-server license, so a real Steam account\n# is required (the app is free on demand; the account does not need to own the game).\nset -euo pipefail\n\nAPP_ID=2403\nSERVER_DIR=/mnt/server\n\nif [ -z \"${STEAM_USER:-}\" ] || [ -z \"${STEAM_PASS:-}\" ]; then\n    echo \"STEAM_USER and STEAM_PASS are required to install and reinstall: Steam does not serve app ${APP_ID} to anonymous logins.\" >&2\n    echo \"If you cleared them after the last install, enter them again, reinstall, then clear them.\" >&2\n    exit 1\nfi\n\napt-get update\napt-get install -y --no-install-recommends ca-certificates curl lib32gcc-s1\n\n# SteamCMD needs 250 MB free to self-update, more than Wings' /tmp tmpfs (100 MB by default),\n# so it runs from the server disk. The trap deletes it and its cached login on a normal exit.\n# A SIGKILL (install timeout, OOM) skips the trap, so the egg also denylists the folder,\n# entrypoint.sh deletes it at server start, and it is wiped here before use so nothing a\n# user placed in it runs with the credentials in the environment.\nSTEAMCMD_DIR=\"${SERVER_DIR}/.steamcmd-install\"\nrm -rf \"${STEAMCMD_DIR}\"\ntrap 'rm -rf \"${STEAMCMD_DIR}\"' EXIT\nexport HOME=\"${STEAMCMD_DIR}/home\"\nmkdir -p \"${HOME}\"\ncurl -sSL https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz | tar -xz -C \"${STEAMCMD_DIR}\"\ncd \"${STEAMCMD_DIR}\"\n\nLOGIN=(+login \"${STEAM_USER}\" \"${STEAM_PASS}\")\nif [ -n \"${STEAM_AUTH:-}\" ]; then\n    LOGIN+=(\"${STEAM_AUTH}\")\nfi\n\n# The app only defines a Windows launch config; forcing Linux gets the Linux binaries.\n./steamcmd.sh +@sSteamCmdForcePlatformType linux +force_install_dir \"${SERVER_DIR}\" \\\n    \"${LOGIN[@]}\" +app_update \"${APP_ID}\" validate +quit || true\n\nif [ ! -f \"${SERVER_DIR}/srcds_run\" ]; then\n    echo \"Install failed: ${SERVER_DIR}/srcds_run is missing. Check the Steam login output above.\" >&2\n    exit 1\nfi\n\n# The bundled 2008 steamclient cannot log on to today's Steam, so players fail validation.\n# SteamCMD's current 32-bit steamclient still implements the interfaces this engine asks for.\n# app_update validate restores the old file, so this runs on every install.\ncp -f \"${STEAMCMD_DIR}/linux32/steamclient.so\" \"${SERVER_DIR}/bin/steamclient_i486.so\"\n\n# The game's files are mixed case (scripts/Needs, GameInfo.txt) but its code asks for\n# lowercase paths. Without these, spawning a player crashes the server. Give every mixed-case\n# file and directory a lowercase symlink beside it so both spellings resolve.\nlinks=0\nwhile IFS= read -r -d '' path; do\n    dir=$(dirname \"${path}\")\n    name=$(basename \"${path}\")\n    lower=$(printf '%s' \"${name}\" | tr '[:upper:]' '[:lower:]')\n    if [ ! -e \"${dir}/${lower}\" ] && [ ! -L \"${dir}/${lower}\" ]; then\n        ln -s \"${name}\" \"${dir}/${lower}\"\n        links=$((links + 1))\n    fi\ndone < <(find \"${SERVER_DIR}/ship\" -name '*[A-Z]*' ! -type l -print0)\necho \"Created ${links} lowercase links.\"\n\necho \"The Ship dedicated server installed.\"\necho \"Now clear Steam password and Steam Guard code in Startup, then restart the server.\"\n",
             "container": "ghcr.io/parkervcp/installers:debian",
             "entrypoint": "bash"
         }
@@ -30,27 +32,27 @@
     "variables": [
         {
             "name": "Steam username",
-            "description": "Steam account used to download the server. App 2403 is not available anonymously; any Steam account works. Hidden from server users.",
+            "description": "Needed to install and reinstall. App 2403 is not available anonymously; any Steam account works. A throwaway Steam account will work. Shown to server users: SteamCMD prints it in the install console.",
             "env_variable": "STEAM_USER",
             "default_value": "",
-            "user_viewable": false,
+            "user_viewable": true,
             "user_editable": false,
-            "rules": "required|string|max:64",
+            "rules": "nullable|string|max:64",
             "field_type": "text"
         },
         {
             "name": "Steam password",
-            "description": "Password for the Steam account above. Only used during install. Hidden from server users.",
+            "description": "Needed to install and reinstall. Not secret from the running server: it stays in the server's environment until you clear this field and restart. Clear it after every install, and enter it again before reinstalling.",
             "env_variable": "STEAM_PASS",
             "default_value": "",
             "user_viewable": false,
             "user_editable": false,
-            "rules": "required|string|max:128",
+            "rules": "nullable|string|max:128",
             "field_type": "text"
         },
         {
             "name": "Steam Guard code",
-            "description": "Optional. Current Steam Guard code, needed only if the account has Steam Guard enabled. Set it just before reinstalling; codes expire.",
+            "description": "Needed to install and reinstall if the account has Steam Guard. Enter the current code just before installing; codes expire. Clear it after install along with the password.",
             "env_variable": "STEAM_AUTH",
             "default_value": "",
             "user_viewable": false,
